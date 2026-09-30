@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RADWIMPS 曲ランキング投票</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #333; background: #fafafa; }
+    h1 { text-align: center; margin-bottom: 25px; }
+    
+    .vote-box { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); margin-bottom: 30px; }
+    .search-wrapper { position: relative; margin-bottom: 15px; }
+    .search-input {
+      width: 100%; box-sizing: border-box; padding: 14px 20px; font-size: 18px;
+      border: 1px solid #dfe1e5; border-radius: 24px; outline: none; transition: 0.2s;
+      box-shadow: 0 1px 6px rgba(32,33,36,0.1);
+    }
+    .search-input:focus {
+      border-color: transparent; box-shadow: 0 1px 8px rgba(32,33,36,0.25);
+    }
+    .suggestions-list {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      list-style: none; margin: 0; padding: 8px 0; max-height: 260px; overflow-y: auto;
+      z-index: 100; display: none; border: 1px solid #eee;
+    }
+    .suggestions-list.show { display: block; }
+    .suggestion-item {
+      padding: 12px 20px; font-size: 16px; cursor: pointer; display: flex; align-items: center;
+    }
+    .suggestion-item:hover { background: #f1f3f4; }
+    
+    .btn-submit {
+      width: 100%; padding: 14px; font-size: 18px; border-radius: 24px; border: none;
+      background: #1a73e8; color: white; cursor: pointer; font-weight: bold; transition: 0.2s;
+    }
+    .btn-submit:hover { background: #1557b0; }
+    .btn-submit:disabled { background: #ccc; cursor: not-allowed; }
+
+    .ranking-container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+    .ranking-list { list-style: none; padding: 0; margin: 0; }
+    .ranking-item { 
+      display: flex; justify-content: space-between; align-items: center; 
+      padding: 12px 8px; border-bottom: 1px solid #f0f0f0; 
+    }
+    .ranking-item:last-child { border-bottom: none; }
+    
+    /* 左側：順位・曲名・票数 */
+    .song-left-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+    .song-title-group { display: flex; flex-direction: column; min-width: 0; }
+    .song-name { font-size: 16px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vote-count { font-size: 13px; color: #1a73e8; font-weight: bold; }
+
+    /* 順位バッジ */
+    .rank-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 44px; height: 30px; border-radius: 15px; font-size: 13px; font-weight: bold;
+      background: #f1f3f4; color: #5f6368; flex-shrink: 0;
+    }
+    .top-1 { background: linear-gradient(135deg, #ffe066, #f59f00); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .top-2 { background: linear-gradient(135deg, #e9ecef, #868e96); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .top-3 { background: linear-gradient(135deg, #f08c00, #b04e02); color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+    /* ランク外 */
+    .unranked .song-name { color: #888; font-weight: normal; }
+    .unranked .vote-count { color: #aaa; }
+    .unranked .rank-badge { color: #aaa; background: #fafafa; border: 1px solid #eee; }
+
+    /* 右側：ボタンエリア */
+    .song-actions { 
+      margin-left: 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; 
+    }
+
+    /* 「この曲に投票!」ボタン */
+    .row-vote-btn {
+      padding: 6px 12px; font-size: 12px; font-weight: bold; border-radius: 16px;
+      border: 1px solid #1a73e8; background: #e8f0fe; color: #1a73e8; cursor: pointer;
+      white-space: nowrap; transition: 0.2s;
+    }
+    .row-vote-btn:hover { background: #1a73e8; color: white; }
+    
+    /* 他の曲の無効化（グレー） */
+    .row-vote-btn:disabled {
+      border-color: #ddd; background: #f1f3f4; color: #aaa; cursor: not-allowed;
+    }
+
+    /* 自分が投票した曲のボタン（赤色で強調） */
+    .row-vote-btn.my-voted {
+      background: #d93025 !important;
+      border-color: #d93025 !important;
+      color: #ffffff !important;
+      cursor: default !important;
+      opacity: 1 !important;
+    }
+
+    /* YouTubeアイコンボタン */
+    .yt-icon-btn {
+      background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center;
+      transition: transform 0.15s ease;
+    }
+    .yt-icon-btn:hover { transform: scale(1.15); }
+    .yt-icon-svg { width: 32px; height: 22px; vertical-align: middle; }
+
+    /* YouTubeモーダル */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.8); display: none; justify-content: center; align-items: center;
+      z-index: 1000; padding: 20px; box-sizing: border-box;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-content {
+      position: relative; width: 100%; max-width: 720px; background: #111; border-radius: 12px;
+      overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .video-responsive {
+      position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;
+    }
+    .video-responsive iframe {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;
+    }
+    .modal-footer {
+      padding: 10px 15px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-footer a {
+      color: #ff4e45; font-size: 13px; text-decoration: none; font-weight: bold;
+    }
+    .modal-footer a:hover { text-decoration: underline; }
+    .modal-close-btn {
+      background: none; border: none; color: #fff; font-size: 14px; cursor: pointer; padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>RADWIMPS 曲ランキング</h1>
+
+  <div class="vote-box">
+    <h3 style="margin-top:0;">曲を選んで投票</h3>
+    
+    <div class="search-wrapper">
+      <input type="text" id="song-input" class="search-input" placeholder="曲名を入力して検索..." autocomplete="off">
+      <ul id="suggestions" class="suggestions-list"></ul>
+    </div>
+
+    <button id="vote-btn" class="btn-submit" onclick="submitFromInput()">この曲に投票する</button>
+  </div>
+
+  <div class="ranking-container">
+    <h3 style="margin-top:0;">現在のランキング</h3>
+    <div id="loading" style="color: #666;">データを取得中...</div>
+    <ul id="ranking-list" class="ranking-list"></ul>
+  </div>
+
+  <!-- YouTube再生モーダル -->
+  <div id="video-modal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="video-responsive">
+        <iframe 
+          id="player-iframe" 
+          src="" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+          referrerpolicy="strict-origin-when-cross-origin" 
+          allowfullscreen>
+        </iframe>
+      </div>
+      <div class="modal-footer">
+        <a id="fallback-link" href="#" target="_blank" rel="noopener noreferrer">
+          再生できない場合はYouTube本体で開く (別タブ)
+        </a>
+        <button class="modal-close-btn" onclick="closeModal()">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzqR1E5oGE-Yfrh3mqiycX90DNs_QTxfvWepVenyyVPg_NfTFz_Ra5qLY0NSNB67hCX/exec";
+
+    let validSongObjects = [];
+    const input = document.getElementById("song-input");
+    const suggestions = document.getElementById("suggestions");
+    const modal = document.getElementById("video-modal");
+    const iframe = document.getElementById("player-iframe");
+    const fallbackLink = document.getElementById("fallback-link");
+
+    // 投票済み判定
+    const hasAlreadyVoted = () => {
+      return localStorage.getItem("hasVoted") === "true";
+    };
+
+    // 自分が投票した曲名を取得
+    const getMyVotedSong = () => {
+      return localStorage.getItem("votedSongTitle") || "";
+    };
+
+    const YT_ICON_SVG = `
+      <svg class="yt-icon-svg" viewBox="0 0 68 48">
+        <path fill="#FF0000" d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z"/>
+        <path fill="#FFFFFF" d="M45 24L27 14v20"/>
+      </svg>
+    `;
+
+    const extractVideoId = (url) => {
+      if (!url) return null;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+    };
+
+    const openVideo = (youtubeUrl, songTitle) => {
+      const videoId = extractVideoId(youtubeUrl);
+      const ytDirectUrl = videoId 
+        ? `https://www.youtube.com/watch?v=${videoId}` 
+        : `https://www.youtube.com/results?search_query=RADWIMPS+${encodeURIComponent(songTitle)}`;
+      
+      fallbackLink.href = ytDirectUrl;
+
+      if (videoId) {
+        iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`;
+        modal.classList.add("open");
+      } else {
+        window.open(ytDirectUrl, "_blank");
+      }
+    };
+
+    const closeModal = (e) => {
+      iframe.src = "";
+      modal.classList.remove("open");
+    };
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+
+    const getDeviceId = () => {
+      const raw = navigator.userAgent + screen.width + "x" + screen.height;
+      let hash = 0;
+      for (let i = 0; i < raw.length; i++) {
+        hash = (hash << 5) - hash + raw.charCodeAt(i);
+        hash |= 0;
+      }
+      return "dev_" + Math.abs(hash);
+    };
+
+    window.addEventListener("DOMContentLoaded", () => {
+      applyVoteRestriction();
+      loadData();
+    });
+
+    const applyVoteRestriction = () => {
+      if (hasAlreadyVoted()) {
+        const btn = document.getElementById("vote-btn");
+        const mySong = getMyVotedSong();
+        btn.disabled = true;
+        btn.innerText = mySong ? `投票済み (投票した曲: ${mySong})` : "投票済み (1人1回まで)";
+        input.disabled = true;
+      }
+    };
+
+    input.addEventListener("input", () => {
+      const query = input.value.trim().toLowerCase();
+      suggestions.innerHTML = "";
+
+      if (!query) {
+        suggestions.classList.remove("show");
+        return;
+      }
+
+      const matched = validSongObjects.filter(item => item.title.toLowerCase().includes(query));
+
+      if (matched.length > 0) {
+        matched.forEach(item => {
+          const li = document.createElement("li");
+          li.className = "suggestion-item";
+          li.innerText = item.title;
+          li.addEventListener("click", () => {
+            input.value = item.title;
+            suggestions.classList.remove("show");
+          });
+          suggestions.appendChild(li);
+        });
+        suggestions.classList.add("show");
+      } else {
+        suggestions.classList.remove("show");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".search-wrapper")) {
+        suggestions.classList.remove("show");
+      }
+    });
+
+    // 1行分のHTML要素を作る関数（自分が投票した曲のボタンを赤くする）
+    const createRankingItem = (rankText, rankClass, songTitle, voteText, youtubeUrl, isUnranked = false) => {
+      const li = document.createElement("li");
+      li.className = `ranking-item ${isUnranked ? 'unranked' : ''}`;
+      
+      const safeTitle = songTitle.replace(/'/g, "\\'");
+      const safeUrl = (youtubeUrl || "").replace(/'/g, "\\'");
+      
+      const isVoted = hasAlreadyVoted();
+      const isMyVote = (getMyVotedSong() === songTitle);
+
+      // ボタンの文字・スタイルの切り替え
+      let btnText = "この曲に投票!";
+      let btnClass = "row-vote-btn";
+
+      if (isMyVote) {
+        btnText = "投票した曲";
+        btnClass += " my-voted"; // 赤色スタイル
+      } else if (isVoted) {
+        btnText = "投票済";
+      }
+
+      li.innerHTML = `
+        <div class="song-left-info">
+          <span class="rank-badge ${rankClass}">${rankText}</span>
+          <div class="song-title-group">
+            <span class="song-name">${songTitle}</span>
+            <span class="vote-count">${voteText}</span>
+          </div>
+        </div>
+        <div class="song-actions">
+          <button 
+            class="${btnClass}" 
+            onclick="executeVote('${safeTitle}', this)" 
+            ${isVoted ? 'disabled' : ''}>
+            ${btnText}
+          </button>
+          <button class="yt-icon-btn" onclick="openVideo('${safeUrl}', '${safeTitle}')" title="再生する">
+            ${YT_ICON_SVG}
+          </button>
+        </div>
+      `;
+      return li;
+    };
+
+    const loadData = async () => {
+      try {
+        const res = await fetch(GAS_URL);
+        const data = await res.json();
+        
+        document.getElementById("loading").style.display = "none";
+        validSongObjects = data.songs || [];
+
+        const songUrlMap = {};
+        validSongObjects.forEach(s => {
+          songUrlMap[s.title] = s.youtubeUrl;
+        });
+
+        const listEl = document.getElementById("ranking-list");
+        listEl.innerHTML = "";
+
+        const ranking = data.ranking || [];
+
+        ranking.forEach((item, index) => {
+          let rankClass = "";
+          let rankText = `${index + 1}位`;
+
+          if (index === 0) rankClass = "top-1";
+          else if (index === 1) rankClass = "top-2";
+          else if (index === 2) rankClass = "top-3";
+
+          const ytUrl = songUrlMap[item.songTitle] || "";
+          const li = createRankingItem(rankText, rankClass, item.songTitle, `${item.votes} 票`, ytUrl);
+          listEl.appendChild(li);
+        });
+
+        const votedTitles = ranking.map(item => item.songTitle);
+        const unvotedSongs = validSongObjects.filter(item => !votedTitles.includes(item.title));
+
+        unvotedSongs.forEach(item => {
+          const li = createRankingItem("- 位", "", item.title, "- 票", item.youtubeUrl, true);
+          listEl.appendChild(li);
+        });
+
+        if (ranking.length === 0 && unvotedSongs.length === 0) {
+          listEl.innerHTML = "<li>曲リストが空です。スプレッドシートをご確認ください。</li>";
+        }
+
+      } catch (err) {
+        document.getElementById("loading").innerText = "データの取得に失敗しました。";
+        console.error(err);
+      }
+    };
+
+    const submitFromInput = () => {
+      const songTitle = input.value.replace(/^[\s　]+|[\s　]+$/g, "");
+      const validTitles = validSongObjects.map(s => s.title);
+
+      if (!songTitle) {
+        alert("曲名を入力または選択してください。");
+        return;
+      }
+      if (validTitles.length > 0 && !validTitles.includes(songTitle)) {
+        alert("候補に出てくる曲名から正しく選択してください。");
+        return;
+      }
+
+      const mainBtn = document.getElementById("vote-btn");
+      executeVote(songTitle, mainBtn);
+    };
+
+    const executeVote = async (songTitle, clickedBtn) => {
+      if (hasAlreadyVoted()) {
+        alert("投票は1人1回までです。");
+        return;
+      }
+
+      document.querySelectorAll(".row-vote-btn, #vote-btn").forEach(btn => btn.disabled = true);
+      if (clickedBtn) clickedBtn.innerText = "送信中...";
+
+      const deviceId = getDeviceId();
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ songTitle, deviceId })
+        });
+        
+        const result = await res.json();
+
+        if (result.status === "success") {
+          // 投票フラグと投票した曲名を保存
+          localStorage.setItem("hasVoted", "true");
+          localStorage.setItem("votedSongTitle", songTitle);
+
+          alert(`「${songTitle}」に投票しました！`);
+          
+          applyVoteRestriction();
+          input.value = "";
+          loadData(); // 画面を再読み込み（自分が投票した曲が赤くなります）
+        } else {
+          alert("エラー: " + result.message);
+          document.querySelectorAll(".row-vote-btn, #vote-btn").forEach(btn => btn.disabled = false);
+          if (clickedBtn) clickedBtn.innerText = "この曲に投票!";
+        }
+      } catch (err) {
+        alert("送信に失敗しました。");
+        console.error(err);
+        document.querySelectorAll(".row-vote-btn, #vote-btn").forEach(btn => btn.disabled = false);
+        if (clickedBtn) clickedBtn.innerText = "この曲に投票!";
+      }
+    };
+  </script>
+</body>
+</html>
